@@ -336,19 +336,11 @@ Local captures from **`npm start`** and **`npm run ui`** (`http://localhost:3847
 
 ![Dashboard aggregate table on dataset v1 batch](./docs/screenshots/dashboard-dataset-v1-aggregate-only.png)
 
-![Dashboard aggregate table variant](./docs/screenshots/dashboard-dataset-v1-aggregate-alt.png)
-
-**Terminal — eval in progress:** mode line, slow-request warnings, and prompt ids as models complete.
-
-![Terminal during eval run](./docs/screenshots/terminal-eval-run-start.png)
 
 **Terminal — report (8 scored responses per model, dataset `1.0.0`):** aggregate metrics for each candidate.
 
 ![Terminal model evaluation report 8 prompts](./docs/screenshots/terminal-eval-report-8-prompts.png)
 
-**Terminal — eligibility list and recommendation (8 prompts):** thresholds, eligible models, and the printed recommendation line.
-
-![Terminal recommendation after 8-prompt batch](./docs/screenshots/terminal-eval-recommendation-8-prompts.png)
 
 **Terminal — full completion (10 scored responses per model):** same report style after expanding the dataset; JSON export path and `npm run ui` URLs at the end.
 

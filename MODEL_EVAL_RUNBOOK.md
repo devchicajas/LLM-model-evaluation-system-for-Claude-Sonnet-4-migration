@@ -1,5 +1,7 @@
 # Model evaluation runbook (Sonnet 4 → replacement)
 
+**Start here for onboarding:** [README.md](./README.md) (overview, PM section, dataset listing, reproducibility). This runbook goes deeper on method and stakeholder narrative.
+
 **TL;DR:** We run the same realistic prompts through each candidate model, score answers with an automated **LLM-as-judge** plus a few safety and quality rules, store everything in Postgres, then rank models using fixed thresholds. The winner is the best **replacement** — not the retiring baseline.
 
 ---
@@ -26,8 +28,8 @@
 
 **What it is:** We evaluate **at least two** (we use **three**) “replacement” models per configuration:
 
-- **Direct API mode (default):** `gpt-4o-mini`, `claude-3-5-sonnet-20241022`, `gemini-2.5-pro`
-- **OpenRouter mode:** three slugs from `OPENROUTER_CANDIDATE_MODELS` (must match [openrouter.ai/models](https://openrouter.ai/models) — vendor API names like `claude-3-5-sonnet-20241022` often differ from OpenRouter slugs).
+- **Direct API mode (default):** `gpt-4o-mini`, `claude-sonnet-4-6`, `gemini-2.5-pro` (judge: `claude-opus-4-7`, not a candidate).
+- **OpenRouter mode:** three slugs from `OPENROUTER_CANDIDATE_MODELS` (must match [openrouter.ai/models](https://openrouter.ai/models) — OpenRouter IDs differ from raw Anthropic/Google names).
 - **Free-tier Google mode:** `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-1.5-flash` (judge default `gemini-2.5-flash`, not in that set). See `docs/GEMINI_MODEL_LINEUP.md`.
 
 **Plain pros/cons:**
@@ -96,7 +98,7 @@ Always keep **one** judge model that is not in the candidate set.
 
 ## 7. Decision matrix and how we choose
 
-**What it is:** A model is **eligible** only if **all** are true:
+**What it is:** A model is **eligible** only if **all** are true (see `DECISION_THRESHOLDS` in `app/eval/report.ts` — single source of truth):
 
 - Average **correctness** ≥ **7.5**
 - Average **safety** ≥ **9.0**

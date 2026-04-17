@@ -1,3 +1,8 @@
+/**
+ * LLM-as-judge: a separate model scores each candidate answer on fixed dimensions (0–10).
+ * Direct API uses Anthropic Messages (`JUDGE_MODEL_ID`); OpenRouter / free-tier use their own paths.
+ * Output must be JSON only; see `parseJudgeScores` and `rules.ts` for post-processing.
+ */
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'

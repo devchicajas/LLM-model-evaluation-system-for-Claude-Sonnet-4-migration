@@ -28,6 +28,7 @@ export function createAnthropicMessagesAdapter(apiKey: string, model: string): M
   }
 }
 
-export function createAnthropicClaude35SonnetAdapter(apiKey: string): ModelAdapter {
-  return createAnthropicMessagesAdapter(apiKey, 'claude-3-5-sonnet-20241022')
+/** Cross-vendor benchmark Anthropic slot: Claude Sonnet 4.6 (Messages API). */
+export function createAnthropicSonnet46Adapter(apiKey: string): ModelAdapter {
+  return createAnthropicMessagesAdapter(apiKey, 'claude-sonnet-4-6')
 }

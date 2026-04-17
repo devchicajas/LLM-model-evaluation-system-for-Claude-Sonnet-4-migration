@@ -88,6 +88,7 @@
   <main>
     <div id="status" class="banner">Loading…</div>
     <div id="content" style="display:none">
+      <div class="banner" id="repro-banner" style="display:none; margin-bottom:1rem;"></div>
       <div class="recommendation" id="recommendation"></div>
       <h2>Aggregate by model</h2>
       <table id="agg-table">
@@ -122,6 +123,16 @@
         }
         el.style.display = 'none';
         content.style.display = 'block';
+        const rep = data.reproducibility;
+        if (rep) {
+          const rb = document.getElementById('repro-banner');
+          rb.style.display = 'block';
+          rb.textContent =
+            'Batch ' + data.evalBatchId + ' · mode ' + rep.evalRuntimeMode +
+            ' · candidates ' + (rep.candidateModels || []).join(', ') +
+            ' · judge ' + rep.judgeModelId +
+            ' · dataset ' + rep.datasetVersion + ' (sha256 ' + rep.datasetSha256.slice(0, 12) + '…)';
+        }
         document.getElementById('recommendation').textContent = data.report.recommendation || '';
 
         const tbody = document.querySelector('#agg-table tbody');

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
 import {
-  createAnthropicClaude35SonnetAdapter,
   createAnthropicMessagesAdapter,
+  createAnthropicSonnet46Adapter,
 } from './adapters/anthropic.js'
 import { createGemini25ProAdapter, createGeminiGenerativeAdapter } from './adapters/google.js'
 import { createOpenAiGpt4oMiniAdapter } from './adapters/openai.js'
@@ -27,7 +27,7 @@ import {
 import { applyRuleBasedScoring } from './rules.js'
 import { sleep, withRetries } from './retry.js'
 import type { DatasetPrompt, GenerateResponse, ModelAdapter, PersistedEvalScores } from './types.js'
-import { FREE_TIER_EVAL_MODEL_IDS } from './types.js'
+import { FREE_TIER_EVAL_MODEL_IDS, STANDARD_EVAL_MODEL_IDS } from './types.js'
 
 const { Pool } = pg
 
@@ -232,7 +232,7 @@ function buildAdaptersAndJudge(): {
   }
   const adapters: readonly ModelAdapter[] = [
     createOpenAiGpt4oMiniAdapter(openaiApiKey),
-    createAnthropicClaude35SonnetAdapter(anthropicApiKey),
+    createAnthropicSonnet46Adapter(anthropicApiKey),
     createGemini25ProAdapter(googleApiKey),
   ]
   return {
@@ -248,6 +248,20 @@ function buildAdaptersAndJudge(): {
  */
 export async function runAll(): Promise<{ evalBatchId: string; runErrors: string[] }> {
   validateApiKeys()
+  if (isOpenRouterEval()) {
+    const slugs = getOpenRouterCandidateSlugs()
+    console.info(
+      `[eval] Mode: OpenRouter (EVAL_OPENROUTER=true) — candidates: ${slugs.join(', ')}; judge: ${getOpenRouterJudgeModelSlug()}`,
+    )
+  } else if (isFreeTierEval()) {
+    console.info(
+      `[eval] Mode: Google-only (EVAL_FREE_TIER=true) — ${FREE_TIER_EVAL_MODEL_IDS.join(', ')}`,
+    )
+  } else {
+    console.info(
+      `[eval] Mode: Direct vendor APIs (EVAL_OPENROUTER off) — ${STANDARD_EVAL_MODEL_IDS.join(', ')}`,
+    )
+  }
   const databaseUrl = getDatabaseUrl()
   const { adapters, judgeCtx, baselineAdapter } = buildAdaptersAndJudge()
   const allAdapters: readonly ModelAdapter[] = baselineAdapter

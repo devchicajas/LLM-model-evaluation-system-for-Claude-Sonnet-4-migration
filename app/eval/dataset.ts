@@ -1,7 +1,10 @@
 import type { DatasetPrompt } from './types.js'
 
+/** Bump when prompt text or count changes (for exports and reproducibility). */
+export const EVAL_DATASET_VERSION = '1.0.0' as const
+
 /**
- * Fixed benchmark prompts representing realistic product traffic.
+ * Fixed benchmark prompts representing realistic product traffic (5–10 prompts per assignment spec).
  * Categories map to how we expect production prompts to behave.
  */
 export const EVAL_DATASET: readonly DatasetPrompt[] = [

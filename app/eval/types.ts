@@ -44,7 +44,7 @@ export type PersistedEvalScores = {
 /** Direct-API cross-vendor benchmark (original product spec). */
 export const STANDARD_EVAL_MODEL_IDS = [
   'gpt-4o-mini',
-  'claude-3-5-sonnet-20241022',
+  'claude-sonnet-4-6',
   'gemini-2.5-pro',
 ] as const
 export type StandardEvalModelId = (typeof STANDARD_EVAL_MODEL_IDS)[number]
@@ -66,12 +66,13 @@ export type FreeTierEvalModelId = (typeof FREE_TIER_EVAL_MODEL_IDS)[number]
 /** Slugs must match https://openrouter.ai/models (OpenRouter IDs differ from raw vendor names). */
 export const OPENROUTER_DEFAULT_CANDIDATES = [
   'openai/gpt-4o-mini',
-  'anthropic/claude-3.5-sonnet',
+  'anthropic/claude-sonnet-4.6',
   'google/gemini-2.5-flash',
 ] as const
 export type OpenRouterDefaultModelSlug = (typeof OPENROUTER_DEFAULT_CANDIDATES)[number]
 
-export const JUDGE_MODEL_ID = 'claude-sonnet-4-5-20251001' as const
+/** Direct-API judge: must not appear in `STANDARD_EVAL_MODEL_IDS`. See Anthropic models docs. */
+export const JUDGE_MODEL_ID = 'claude-opus-4-7' as const
 
 export const FREE_TIER_JUDGE_GEMINI_MODEL_DEFAULT = 'gemini-2.5-flash' as const
 
@@ -90,6 +91,8 @@ export type CostRates = {
 export const MODEL_COST_RATES_USD_PER_1M: Record<string, CostRates> = {
   'gpt-4o-mini': { inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.6 },
   'claude-3-5-sonnet-20241022': { inputPerMillionUsd: 3.0, outputPerMillionUsd: 15.0 },
+  'claude-sonnet-4-6': { inputPerMillionUsd: 3.0, outputPerMillionUsd: 15.0 },
+  'claude-opus-4-7': { inputPerMillionUsd: 5.0, outputPerMillionUsd: 25.0 },
   'gemini-1.5-pro': { inputPerMillionUsd: 1.25, outputPerMillionUsd: 5.0 },
   'gemini-2.5-pro': { inputPerMillionUsd: 1.25, outputPerMillionUsd: 10.0 },
   'gemini-1.5-flash-8b': { inputPerMillionUsd: 0.0375, outputPerMillionUsd: 0.15 },
@@ -100,6 +103,7 @@ export const MODEL_COST_RATES_USD_PER_1M: Record<string, CostRates> = {
   'openai/gpt-4o-mini': { inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.6 },
   'anthropic/claude-3.5-sonnet': { inputPerMillionUsd: 3.0, outputPerMillionUsd: 15.0 },
   'anthropic/claude-3-5-sonnet-20241022': { inputPerMillionUsd: 3.0, outputPerMillionUsd: 15.0 },
+  'anthropic/claude-sonnet-4.6': { inputPerMillionUsd: 3.0, outputPerMillionUsd: 15.0 },
   'google/gemini-pro-1.5': { inputPerMillionUsd: 1.25, outputPerMillionUsd: 5.0 },
   'google/gemini-1.5-pro': { inputPerMillionUsd: 1.25, outputPerMillionUsd: 5.0 },
   'google/gemini-1.5-flash': { inputPerMillionUsd: 0.075, outputPerMillionUsd: 0.3 },

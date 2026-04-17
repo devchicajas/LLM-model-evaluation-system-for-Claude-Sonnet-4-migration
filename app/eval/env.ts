@@ -1,5 +1,6 @@
 import {
   FREE_TIER_EVAL_MODEL_IDS,
+  JUDGE_MODEL_ID,
   OPENROUTER_DEFAULT_CANDIDATES,
   STANDARD_EVAL_MODEL_IDS,
 } from './types.js'
@@ -74,7 +75,7 @@ export function getOpenRouterCandidateSlugs(): readonly string[] {
     .filter((s) => s.length > 0)
   if (parts.length !== 3) {
     throw new Error(
-      'OPENROUTER_CANDIDATE_MODELS must list exactly three comma-separated OpenRouter model slugs (e.g. openai/gpt-4o-mini,anthropic/claude-3.5-sonnet,google/gemini-2.5-flash). Check https://openrouter.ai/models if you see 404 or "not a valid model ID".',
+      'OPENROUTER_CANDIDATE_MODELS must list exactly three comma-separated OpenRouter model slugs (e.g. openai/gpt-4o-mini,anthropic/claude-sonnet-4.6,google/gemini-2.5-flash). Check https://openrouter.ai/models if you see 404 or "not a valid model ID".',
     )
   }
   return parts
@@ -123,4 +124,20 @@ export function getFreeTierJudgeGeminiModelId(): string {
   const raw = process.env.FREE_JUDGE_MODEL_ID?.trim()
   if (raw) return raw
   return 'gemini-2.5-flash'
+}
+
+/** Which integration path the eval harness uses (drives adapters and judge routing). */
+export type EvalRuntimeMode = 'direct' | 'openrouter' | 'free_tier'
+
+export function getEvalRuntimeMode(): EvalRuntimeMode {
+  if (isOpenRouterEval()) return 'openrouter'
+  if (isFreeTierEval()) return 'free_tier'
+  return 'direct'
+}
+
+/** Model id string used for scoring (never one of the three candidates). */
+export function getCurrentJudgeModelId(): string {
+  if (isOpenRouterEval()) return getOpenRouterJudgeModelSlug()
+  if (isFreeTierEval()) return getFreeTierJudgeGeminiModelId()
+  return JUDGE_MODEL_ID
 }

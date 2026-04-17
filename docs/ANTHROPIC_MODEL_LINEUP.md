@@ -28,8 +28,8 @@ Anthropic documents **Claude Sonnet 4** (`claude-sonnet-4-20250514` and related)
 
 ## How this repo uses Anthropic today
 
-- **Default direct-API candidates** (cross-vendor benchmark): OpenAI + **Claude 3.5 Sonnet (`claude-3-5-sonnet-20241022`)** + **Gemini 2.5 Pro (`gemini-2.5-pro`)** — not the 4.6/4.7/4.5 trio above.
-- **Judge** (direct API): **`claude-sonnet-4-5-20251001`** — must stay separate from candidates.
+- **Default direct-API candidates** (cross-vendor benchmark): OpenAI + **Claude Sonnet 4.6 (`claude-sonnet-4-6`)** + **Gemini 2.5 Pro (`gemini-2.5-pro`)** — not the “three Anthropic models only” lineup above.
+- **Judge** (direct API): **`claude-opus-4-7`** — must stay separate from candidates (matches current [Anthropic models](https://platform.claude.com/docs/en/about-claude/models) IDs).
 - **Optional baseline**: **`claude-sonnet-4`** (or env override) when `EVAL_BASELINE_SONNET4=true`, for “before vs after” on the same prompts.
 
 To **evaluate only** Opus 4.7 vs Sonnet 4.6 vs Haiku 4.5, you’d wire three `createAnthropicMessagesAdapter(key, '<id>')` instances (or the equivalent OpenRouter slugs) in `runEval.ts` / env — that’s a deliberate product choice, not the current default.

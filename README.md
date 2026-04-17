@@ -34,12 +34,26 @@ Choosing a model from marketing pages or public leaderboards is risky: **your** 
 
 | Goal | How it is met |
 |------|----------------|
-| Realistic evaluation | **8** fixed prompts (within the **5–10** assignment range) in `app/eval/dataset.ts` |
+| Realistic evaluation | **10** fixed prompts (within the **5–10** assignment range) in `app/eval/dataset.ts` |
 | Multiple candidates | **Three** replacement models per run (≥2 required), plus optional **Sonnet 4 baseline** for “before vs after” (baseline is **never** the winner) |
 | Defined evaluation | **LLM judge** (`app/eval/judge.ts`) + **rules** (`app/eval/rules.ts`) |
 | Comparable results | Per-model aggregates and ranking in `app/eval/report.ts` |
 | Clear decision | Printed **recommendation** string + `report.winner` in JSON |
 | Stakeholder-ready narrative | This README + [MODEL_EVAL_RUNBOOK.md](./MODEL_EVAL_RUNBOOK.md) |
+
+---
+
+## Assignment requirements (course rubric)
+
+Your brief asked for the items below. Here is where each one is satisfied in this repo (all **yes**):
+
+| Requirement (as assigned) | What we did | Where to look |
+|----------------------------|---------------|----------------|
+| **Create a dataset of 5–10 realistic user prompts** for your application | **10** B2B-style prompts (product, debugging, RAG, ambiguity, edge cases, compliance, operations), with full text in README and in `app/eval/dataset.ts` | [Dataset (10 prompts)](#dataset-10-prompts) · `app/eval/dataset.ts` |
+| **Select at least 2 candidate replacement models** | **3** candidates per run (direct: GPT‑4o mini, Claude Sonnet 4.6, Gemini 2.5 Pro); optional **Sonnet 4 baseline** for comparison only | [Candidate models](#candidate-models) · `STANDARD_EVAL_MODEL_IDS` in `app/eval/types.ts` |
+| **Define how you will evaluate outputs** (e.g. scoring criteria, judge prompts, or rules) | **LLM-as-judge** JSON rubric (correctness, clarity, completeness, helpfulness, safety, overall) + **rule layer** (safety keywords, short-output penalty, debugging code-fence bonus) + **eligibility thresholds** | [Evaluation methodology](#evaluation-methodology) · [Judge logic](#judge-logic-grading-system) · `DECISION_THRESHOLDS` in `app/eval/report.ts` |
+| **Explain how you will compare results across models** | Per-model **averages**, **p50/p95 latency**, **failure rate**, **estimated cost**; **filter** by gates then **rank** by overall → latency → cost | [How results are compared across models](#how-results-are-compared-across-models) · `app/eval/report.ts` |
+| **Decide which model you would choose and justify** using your evaluation approach | Automated **winner** among eligible models + **recommendation** string after each `npm start`; README explains how to turn that into a product memo | [Final model decision and justification](#final-model-decision-and-justification) · terminal output · `eval-output/latest-run.json` → `report.winner`, `report.recommendation` |
 
 ---
 
@@ -84,9 +98,9 @@ On a successful **direct API** run with defaults, the system might recommend **`
 
 ---
 
-## Dataset (8 prompts)
+## Dataset (10 prompts)
 
-All prompts live in **`app/eval/dataset.ts`**. Version string: **`EVAL_DATASET_VERSION`** (currently `1.0.0`). A **SHA-256** of the full prompt set is embedded in JSON exports under `reproducibility.datasetSha256`.
+All prompts live in **`app/eval/dataset.ts`**. Version string: **`EVAL_DATASET_VERSION`** (currently `2.0.0`). A **SHA-256** of the full prompt set is embedded in JSON exports under `reproducibility.datasetSha256`.
 
 | ID | Category | What it simulates |
 |----|----------|-------------------|
@@ -98,8 +112,65 @@ All prompts live in **`app/eval/dataset.ts`**. Version string: **`EVAL_DATASET_V
 | `ambiguity-vague-bug-report` | ambiguity | “The checkout is broken” with no detail |
 | `edge-cases-empty-input` | edge cases | **Empty** user message (API harness vs judge visibility handled in code) |
 | `edge-cases-extreme-constraints` | edge cases | URL shortener design under strict engineering constraints |
+| `security-gdpr-dsr-workflow` | compliance | GDPR access / rectification / erasure with S3 + audit retention |
+| `operations-incident-summary` | operations | Condense noisy incident notes for leadership bullets |
 
-**Full verbatim prompt text** is in the source file and in each JSON export’s `dataset` array.
+**Canonical source:** `app/eval/dataset.ts` (and `eval-output/latest-run.json` → `dataset` after a run). The blocks below are a **reader copy** for graders and PMs; if anything disagrees, the TypeScript file wins.
+
+### Full prompt text
+
+#### `product-roadmap-prioritization` (product)
+
+> We are a B2B SaaS for finance teams. Leadership wants a quarterly roadmap theme: either "workflow automation" or "deeper ERP integrations". What criteria should we use to decide, and what decision process would you recommend for a 10-person product org?
+
+#### `product-feature-request-triage` (product)
+
+> Customers keep asking for a "dark mode" and for CSV exports larger than 500k rows. Our eng capacity is tight. How should we triage these requests and what should we communicate back to customers?
+
+#### `debugging-python-traceback` (debugging)
+
+> I am getting this error in Python 3.11:
+>
+> Traceback (most recent call last):
+>   File "app.py", line 42, in <module>
+>     user = load_user(payload["user_id"])
+> KeyError: 'user_id'
+>
+> The payload is built from a JWT. What are the most likely causes and how should I debug step by step?
+
+#### `debugging-node-async-hang` (debugging)
+
+> Our Node.js API sometimes hangs under load: requests never return, no obvious exception. We use Postgres + Prisma. Outline a practical debugging checklist and what signals to look for in logs/metrics.
+
+#### `rag-policy-handbook` (RAG)
+
+> Using ONLY the following retrieved snippets from our employee handbook, answer the question. If the snippets are insufficient, say what is missing.
+>
+> [Snippet A] Remote employees must follow the security checklist in Appendix C before accessing customer data.
+> [Snippet B] Appendix C requires full-disk encryption, screen lock <= 5 minutes, and MDM enrollment on laptops.
+> [Snippet C] Customer data access requires manager approval recorded in the access ticket system.
+>
+> Question: As a remote employee, what must I complete before accessing customer data, and where is approval recorded?
+
+#### `ambiguity-vague-bug-report` (ambiguity)
+
+> The checkout is broken. Fix it.
+
+#### `edge-cases-empty-input` (edge cases)
+
+> *(Empty string.)* The model API receives a short harness line instead of a zero-token message so providers accept the call; the **judge** still sees a truly empty user prompt. See `app/eval/runEval.ts` (`promptForModelApi`).
+
+#### `edge-cases-extreme-constraints` (edge cases)
+
+> Design a URL shortener API with these constraints: max 6-character codes, case-insensitive, must support 10M active links, and collisions must be astronomically unlikely. Summarize the encoding approach and the collision handling strategy in under 200 words.
+
+#### `security-gdpr-dsr-workflow` (compliance)
+
+> A customer in the EU emailed support asking to exercise their GDPR data subject rights: access, rectification, and erasure for their account. Our app stores profile data in Postgres, files in S3, and audit logs in a separate retention bucket (7-year legal hold for finance events). Outline a practical internal workflow: who approves what, in what order, what we must not delete, and what to communicate back to the customer with realistic timelines.
+
+#### `operations-incident-summary` (operations)
+
+> Summarize the following incident notes for leadership (max 5 bullet points, each one line): At 09:12 UTC API error rate spiked to 12%. On-call paged. Found DB connection pool exhausted after a deploy that doubled default pool size in one region only. Rolled back deploy at 09:45. Error rate normalized by 09:52. Customer impact: ~400 failed checkouts, no data loss. Follow-up: add pool metrics dashboard and regional deploy checklist.
 
 ---
 
@@ -109,7 +180,7 @@ Defaults target a **cross-vendor** comparison (assignment asks for ≥2 candidat
 
 | Mode | Env flags | Default candidate IDs | Judge |
 |------|-----------|-------------------------|--------|
-| **Direct APIs** (default) | `EVAL_OPENROUTER` off, `EVAL_FREE_TIER` off | `gpt-4o-mini`, `claude-sonnet-4-6`, `gemini-2.5-pro` | `claude-opus-4-7` (Anthropic Messages API) |
+| **Direct APIs** (default) | `EVAL_OPENROUTER` off, `EVAL_FREE_TIER` off | `gpt-4o-mini`, `claude-sonnet-4-6`, `gemini-2.5-pro` | Default **`claude-opus-4-7`**; override with **`DIRECT_JUDGE_MODEL_ID`** (must not match a candidate) |
 | **OpenRouter** | `EVAL_OPENROUTER=true` | `openai/gpt-4o-mini`, `anthropic/claude-sonnet-4.6`, `google/gemini-2.5-flash` (override with `OPENROUTER_CANDIDATE_MODELS`) | `OPENROUTER_JUDGE_MODEL` or default `google/gemini-2.5-pro` |
 | **Google-only** | `EVAL_FREE_TIER=true` | `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-1.5-flash` | `FREE_JUDGE_MODEL_ID` or default `gemini-2.5-flash` |
 
@@ -158,7 +229,7 @@ Defined as **`DECISION_THRESHOLDS`** in `app/eval/report.ts`:
 
 ## Judge logic (grading system)
 
-- **Direct API:** Anthropic **Messages** API with model **`JUDGE_MODEL_ID`** (`app/eval/types.ts`). The judge receives the **original user prompt** (including truly empty prompts for the edge-case row), the **candidate model id**, and the **model answer**. It must return **JSON only** (parsed strictly).
+- **Direct API:** Anthropic **Messages** API with **`DIRECT_JUDGE_MODEL_ID`** if set, otherwise default **`JUDGE_MODEL_ID`** in `app/eval/types.ts`. The judge receives the **original user prompt** (including truly empty prompts for the edge-case row), the **candidate model id**, and the **model answer**. It must return **JSON only** (parsed strictly).
 - **OpenRouter / free tier:** Parallel implementations in `app/eval/judge.ts` using the configured judge model for that mode.
 - **Retries:** Judge calls use the same retry wrapper as generations to reduce flake.
 
@@ -169,8 +240,8 @@ The judge is **never** one of the three candidate models for that run.
 ## How results are compared across models
 
 1. **Per prompt:** each model gets an answer, token counts, latency, and (if judge succeeds) final scores.
-2. **Per model:** arithmetic means of each dimension; p50/p95 latency; failure rate; estimated USD from `MODEL_COST_RATES_USD_PER_1M` in `app/eval/types.ts` (approximate list prices).
-3. **Eligibility:** filter to models passing all gates (and exclude baseline from the winner set).
+2. **Per model:** **mean** of each score dimension (weighted by prompt **category** when `EVAL_CATEGORY_WEIGHTS` is set — JSON map in env); p50/p95 latency; failure rate; estimated USD from `MODEL_COST_RATES_USD_PER_1M` in `app/eval/types.ts` (approximate list prices).
+3. **Eligibility:** filter to models passing all numeric gates **and** optional **`MAX_P95_LATENCY_MS`** (p95 must not exceed this value); exclude baseline from the winner set.
 4. **Ranking:** sort eligible models by **overall** (desc), then **p95 latency** (asc), then **cost** (asc).
 
 Formatted tables appear in **`npm start`** output and in **`eval-output/latest-run.json`** under `report.models`.
@@ -191,7 +262,7 @@ Formatted tables appear in **`npm start`** output and in **`eval-output/latest-r
 | Choice | Benefit | Cost |
 |--------|---------|------|
 | LLM-as-judge | Scales; consistent rubric | Judge bias; cost; needs a **different** model than candidates |
-| Fixed 8 prompts | Cheap; reproducible | Not exhaustive of all production traffic |
+| Fixed 10 prompts | Cheap; reproducible | Not exhaustive of all production traffic |
 | List-price cost estimates | Good for relative comparison | Not exact invoice amounts (especially OpenRouter) |
 | Optional Sonnet 4 baseline | Grounds “how good was legacy?” | Extra API spend; not used in free-tier mode |
 
@@ -249,6 +320,40 @@ npm run ui
 # http://localhost:3847  (override port with EVAL_UI_PORT)
 ```
 
+### Screenshots
+
+Local captures from **`npm start`** and **`npm run ui`** (`http://localhost:3847`). Exact scores, batch ids, and costs depend on your run; the images show **layout** and **terminal flow**.
+
+**Dashboard — current UI (dataset `2.0.0`, 10 prompts):** reproducibility banner, recommendation, aggregate table, and **Per-prompt results** (use **Details** for full prompt, answer, and stored scores JSON).
+
+![Dashboard with per-prompt table and dataset v2](./docs/screenshots/dashboard-dataset-v2-per-prompt.png)
+
+**Details modal (Per-prompt → Details):** full **user prompt**, **model answer**, and **stored scores JSON** (judge dimensions, short qualitative critique, rule metadata, token counts when present). Title shows `model · DB prompt_id …`.
+
+![Dashboard Details modal with prompt answer and scores JSON](./docs/screenshots/dashboard-details-modal.png)
+
+**Dashboard — summary-only framing (batches recorded with dataset `1.0.0`):** recommendation plus **Aggregate by model** (two captures from different viewports).
+
+![Dashboard aggregate table on dataset v1 batch](./docs/screenshots/dashboard-dataset-v1-aggregate-only.png)
+
+![Dashboard aggregate table variant](./docs/screenshots/dashboard-dataset-v1-aggregate-alt.png)
+
+**Terminal — eval in progress:** mode line, slow-request warnings, and prompt ids as models complete.
+
+![Terminal during eval run](./docs/screenshots/terminal-eval-run-start.png)
+
+**Terminal — report (8 scored responses per model, dataset `1.0.0`):** aggregate metrics for each candidate.
+
+![Terminal model evaluation report 8 prompts](./docs/screenshots/terminal-eval-report-8-prompts.png)
+
+**Terminal — eligibility list and recommendation (8 prompts):** thresholds, eligible models, and the printed recommendation line.
+
+![Terminal recommendation after 8-prompt batch](./docs/screenshots/terminal-eval-recommendation-8-prompts.png)
+
+**Terminal — full completion (10 scored responses per model):** same report style after expanding the dataset; JSON export path and `npm run ui` URLs at the end.
+
+![Terminal eval complete 10 prompts and UI URLs](./docs/screenshots/terminal-eval-complete-10-prompts.png)
+
 ---
 
 ## Repository structure
@@ -270,7 +375,8 @@ npm run ui
 | `public/index.html` | Dashboard UI |
 | `sql/schema.sql` | `prompts`, `results` |
 | [MODEL_EVAL_RUNBOOK.md](./MODEL_EVAL_RUNBOOK.md) | Long-form runbook + instructor checklist mapping |
-| `docs/` | Vendor lineup notes (Anthropic, Gemini) |
+| `docs/` | Vendor lineup notes (Anthropic, Gemini), human calibration template |
+| `docs/screenshots/` | README figures: dashboard + terminal captures |
 
 ---
 
@@ -300,9 +406,25 @@ To let someone else reproduce **your** numbers as closely as possible:
 3. Share **`.env.example` semantics** (not secrets): which mode, optional baseline flags.
 4. After a run, share **`eval-output/latest-run.json`** — it now includes:
    - `dataset` (full prompts)
-   - `reproducibility` (Node version, package version, mode, candidates, judge, thresholds, dataset hash)
+   - `reproducibility` (Node version, package version, mode, candidates, judge, thresholds, dataset hash, optional **`maxP95LatencyMsGate`** and **`categoryScoreWeights`**)
 
 Vendor APIs are non-deterministic: expect **small score and latency drift** between runs.
+
+---
+
+## Optional controls (implemented)
+
+These were roadmap items; they are now available:
+
+| Feature | Env / artifact | Notes |
+|---------|------------------|--------|
+| **10 prompts** | `app/eval/dataset.ts` · `EVAL_DATASET_VERSION=2.0.0` | Includes compliance + operations scenarios. |
+| **Configurable direct judge** | `DIRECT_JUDGE_MODEL_ID` | Anthropic model id; must not match a candidate (`validateApiKeys`). |
+| **p95 latency SLO gate** | `MAX_P95_LATENCY_MS` | Eligibility fails if model p95 **exceeds** this many ms. |
+| **Category-weighted averages** | `EVAL_CATEGORY_WEIGHTS` (JSON) | Example: `{"debugging":1.5,"compliance":1.3}` — unknown categories weight **1**. |
+| **CI** | [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) | Runs `npm ci` + `npm run typecheck` on push/PR to `main`/`master`. |
+| **Human calibration template** | [`docs/HUMAN_CALIBRATION_TEMPLATE.md`](./docs/HUMAN_CALIBRATION_TEMPLATE.md) | Optional hand scores vs judge. |
+| **Dashboard drill-down** | `npm run ui` → **Per-prompt results** → **Details** | Full prompt, answer, stored scores JSON. |
 
 ---
 
@@ -321,6 +443,7 @@ Vendor APIs are non-deterministic: expect **small score and latency drift** betw
 ## Additional documentation
 
 - **[MODEL_EVAL_RUNBOOK.md](./MODEL_EVAL_RUNBOOK.md)** — Decision matrix, empty-prompt behavior, instructor checklist mapping.  
+- **[docs/HUMAN_CALIBRATION_TEMPLATE.md](./docs/HUMAN_CALIBRATION_TEMPLATE.md)** — Optional human vs judge spot-check.  
 - **[docs/ANTHROPIC_MODEL_LINEUP.md](./docs/ANTHROPIC_MODEL_LINEUP.md)** — Claude 4.x API ids vs this repo’s defaults.  
 - **[docs/GEMINI_MODEL_LINEUP.md](./docs/GEMINI_MODEL_LINEUP.md)** — Gemini naming and deprecations.
 
@@ -335,3 +458,5 @@ Vendor APIs are non-deterministic: expect **small score and latency drift** betw
 | `npm run db:schema` | Apply `sql/schema.sql` |
 | `npm run ui` | Local dashboard |
 | `npm run typecheck` | TypeScript check |
+
+**CI:** GitHub Actions runs the same typecheck on every push/PR (see `.github/workflows/ci.yml`).

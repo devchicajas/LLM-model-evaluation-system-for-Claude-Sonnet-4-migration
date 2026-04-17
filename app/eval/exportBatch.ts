@@ -7,9 +7,11 @@ import pg from 'pg'
 import { EVAL_DATASET, EVAL_DATASET_VERSION } from './dataset.js'
 import {
   getBaselineEvalModelId,
+  getCategoryScoreWeights,
   getCurrentJudgeModelId,
   getDatabaseUrl,
   getEvalRuntimeMode,
+  getMaxP95LatencyMsGate,
   getOpenRouterCandidateSlugs,
 } from './env.js'
 import { aggregateDecisionReport, DECISION_THRESHOLDS, loadBatchRows } from './report.js'
@@ -41,6 +43,10 @@ export type ReproducibilityInfo = {
   baselineModelId: string | null
   judgeModelId: string
   decisionThresholds: typeof DECISION_THRESHOLDS
+  /** When set, eligibility also requires p95 latency ≤ this value (ms). */
+  maxP95LatencyMsGate: number | null
+  /** When set, per-dimension averages use these category weights (unknown categories weight 1). */
+  categoryScoreWeights: Record<string, number> | null
 }
 
 export type EvalRunExport = {
@@ -93,6 +99,8 @@ function buildReproducibilityInfo(root: string): ReproducibilityInfo {
     baselineModelId: getBaselineEvalModelId(),
     judgeModelId: getCurrentJudgeModelId(),
     decisionThresholds: DECISION_THRESHOLDS,
+    maxP95LatencyMsGate: getMaxP95LatencyMsGate(),
+    categoryScoreWeights: getCategoryScoreWeights(),
   }
 }
 

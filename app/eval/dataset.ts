@@ -1,7 +1,7 @@
 import type { DatasetPrompt } from './types.js'
 
 /** Bump when prompt text or count changes (for exports and reproducibility). */
-export const EVAL_DATASET_VERSION = '1.0.0' as const
+export const EVAL_DATASET_VERSION = '2.0.0' as const
 
 /**
  * Fixed benchmark prompts representing realistic product traffic (5–10 prompts per assignment spec).
@@ -53,5 +53,17 @@ export const EVAL_DATASET: readonly DatasetPrompt[] = [
     category: 'edge cases',
     prompt:
       'Design a URL shortener API with these constraints: max 6-character codes, case-insensitive, must support 10M active links, and collisions must be astronomically unlikely. Summarize the encoding approach and the collision handling strategy in under 200 words.',
+  },
+  {
+    id: 'security-gdpr-dsr-workflow',
+    category: 'compliance',
+    prompt:
+      'A customer in the EU emailed support asking to exercise their GDPR data subject rights: access, rectification, and erasure for their account. Our app stores profile data in Postgres, files in S3, and audit logs in a separate retention bucket (7-year legal hold for finance events). Outline a practical internal workflow: who approves what, in what order, what we must not delete, and what to communicate back to the customer with realistic timelines.',
+  },
+  {
+    id: 'operations-incident-summary',
+    category: 'operations',
+    prompt:
+      'Summarize the following incident notes for leadership (max 5 bullet points, each one line): At 09:12 UTC API error rate spiked to 12%. On-call paged. Found DB connection pool exhausted after a deploy that doubled default pool size in one region only. Rolled back deploy at 09:45. Error rate normalized by 09:52. Customer impact: ~400 failed checkouts, no data loss. Follow-up: add pool metrics dashboard and regional deploy checklist.',
   },
 ] as const

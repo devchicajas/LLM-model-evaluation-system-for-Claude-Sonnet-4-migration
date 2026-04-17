@@ -18,7 +18,7 @@
 
 ## 2. What we tested (dataset)
 
-**What it is:** A fixed list of **8 prompts** in `app/eval/dataset.ts` that mimic real work: product questions, debugging, RAG-style “answer only from snippets,” vague inputs, and edge cases (including an empty message).
+**What it is:** A fixed list of **10 prompts** in `app/eval/dataset.ts` that mimic real work: product questions, debugging, RAG-style “answer only from snippets,” vague inputs, edge cases (including an empty message), compliance (GDPR), and operations (incident summary).
 
 **Why it matters:** The goal is not to test trivia; it is to see how each model behaves on **shapes of work we already see** — triage, code help, policy Q&A, ambiguous tickets, and failure modes.
 
@@ -145,7 +145,7 @@ The code prints an automated **recommendation string** using the numbers from th
 
 | Requirement | Where it lives |
 |-------------|----------------|
-| 5–10 realistic prompts | 8 prompts in `app/eval/dataset.ts` |
+| 5–10 realistic prompts | 10 prompts in `app/eval/dataset.ts` |
 | ≥ 2 candidate models | 3 candidates (+ optional baseline) |
 | Evaluation design | `judge.ts` + `rules.ts` |
 | Compare across models | `report.ts` aggregation + thresholds |

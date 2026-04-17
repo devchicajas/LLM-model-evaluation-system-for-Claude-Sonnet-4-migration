@@ -1,5 +1,11 @@
 import pg from 'pg'
-import { getBaselineEvalModelId, getDatabaseUrl, isBaselineModelId } from './env.js'
+import {
+  getBaselineEvalModelId,
+  getCategoryScoreWeights,
+  getDatabaseUrl,
+  getMaxP95LatencyMsGate,
+  isBaselineModelId,
+} from './env.js'
 import type { JudgeScores, PersistedEvalScores } from './types.js'
 import { computeCostUsdForModel } from './types.js'
 
@@ -18,6 +24,8 @@ export const DECISION_THRESHOLDS = {
 
 export type DbResultRow = {
   model: string
+  prompt_id: number
+  category: string
   answer: string | null
   scores: PersistedEvalScores | null
   latency_ms: number | null
@@ -44,6 +52,22 @@ function quantile(sortedAsc: number[], q: number): number {
 function average(values: number[]): number {
   if (values.length === 0) return 0
   return values.reduce((a, b) => a + b, 0) / values.length
+}
+
+function weightedAverageByCategory(
+  items: { category: string; value: number }[],
+  weights: Record<string, number> | null,
+): number {
+  if (items.length === 0) return 0
+  if (!weights) return average(items.map((i) => i.value))
+  let num = 0
+  let den = 0
+  for (const it of items) {
+    const w = weights[it.category] ?? 1
+    num += it.value * w
+    den += w
+  }
+  return den > 0 ? num / den : 0
 }
 
 export type ModelReport = {
@@ -73,23 +97,35 @@ export type DecisionReport = {
   baselineModelId: string | null
 }
 
+function dimAvg(
+  scoredRows: DbResultRow[],
+  dim: keyof Pick<JudgeScores, 'correctness' | 'clarity' | 'completeness' | 'helpfulness' | 'safety' | 'overall'>,
+  categoryWeights: Record<string, number> | null,
+): number {
+  const items = scoredRows.map((r) => ({
+    category: r.category,
+    value: (r.scores!.finalScores as JudgeScores)[dim],
+  }))
+  return weightedAverageByCategory(items, categoryWeights)
+}
+
 function buildModelReport(
   model: string,
   rows: DbResultRow[],
   promptsPerModel: number,
+  categoryWeights: Record<string, number> | null,
 ): ModelReport {
   const failures = rows.filter((r) => r.answer === null).length
   const failureRatePct = promptsPerModel > 0 ? (failures / promptsPerModel) * 100 : 0
 
   const scoredRows = rows.filter((r) => r.scores !== null && r.scores.finalScores !== null)
 
-  const dims = scoredRows.map((r) => r.scores!.finalScores as JudgeScores)
-  const avgCorrectness = average(dims.map((d) => d.correctness))
-  const avgClarity = average(dims.map((d) => d.clarity))
-  const avgCompleteness = average(dims.map((d) => d.completeness))
-  const avgHelpfulness = average(dims.map((d) => d.helpfulness))
-  const avgSafety = average(dims.map((d) => d.safety))
-  const avgOverall = average(dims.map((d) => d.overall))
+  const avgCorrectness = dimAvg(scoredRows, 'correctness', categoryWeights)
+  const avgClarity = dimAvg(scoredRows, 'clarity', categoryWeights)
+  const avgCompleteness = dimAvg(scoredRows, 'completeness', categoryWeights)
+  const avgHelpfulness = dimAvg(scoredRows, 'helpfulness', categoryWeights)
+  const avgSafety = dimAvg(scoredRows, 'safety', categoryWeights)
+  const avgOverall = dimAvg(scoredRows, 'overall', categoryWeights)
 
   const latencies = rows
     .filter((r) => r.answer !== null && r.latency_ms !== null)
@@ -123,6 +159,8 @@ function buildModelReport(
 
 function passesThresholds(m: ModelReport): boolean {
   const t = DECISION_THRESHOLDS
+  const slo = getMaxP95LatencyMsGate()
+  if (slo !== null && m.p95LatencyMs > slo) return false
   return (
     m.avgCorrectness >= t.minAvgCorrectness &&
     m.avgSafety >= t.minAvgSafety &&
@@ -145,10 +183,11 @@ export async function loadBatchRows(
   const ownPool = pool ?? new Pool({ connectionString: getDatabaseUrl() })
   try {
     const res = await ownPool.query<DbResultRow>(
-      `SELECT model, answer, scores, latency_ms
-       FROM results
-       WHERE eval_batch_id = $1::uuid
-       ORDER BY id ASC`,
+      `SELECT r.model, r.prompt_id, p.category, r.answer, r.scores, r.latency_ms
+       FROM results r
+       JOIN prompts p ON p.id = r.prompt_id AND p.eval_batch_id = r.eval_batch_id
+       WHERE r.eval_batch_id = $1::uuid
+       ORDER BY r.id ASC`,
       [evalBatchId],
     )
     return res.rows
@@ -173,14 +212,24 @@ export async function getLatestEvalBatchId(): Promise<string | null> {
 }
 
 export function aggregateDecisionReport(rows: DbResultRow[], promptsPerModel: number): DecisionReport {
+  const categoryWeights = getCategoryScoreWeights()
   const modelIds = [...new Set(rows.map((r) => r.model))].sort()
   const models = modelIds.map((id) =>
-    buildModelReport(id, rows.filter((r) => r.model === id), promptsPerModel),
+    buildModelReport(id, rows.filter((r) => r.model === id), promptsPerModel, categoryWeights),
   )
   const baselineId = getBaselineEvalModelId()
   const passing = models.filter(passesThresholds).sort(rankEligible)
   const eligible = passing.filter((m) => baselineId === null || !isBaselineModelId(m.model))
   const winner = eligible[0] ?? null
+
+  const slo = getMaxP95LatencyMsGate()
+  const extra: string[] = []
+  if (categoryWeights) {
+    extra.push('Score averages used category weights (EVAL_CATEGORY_WEIGHTS).')
+  }
+  if (slo !== null) {
+    extra.push(`Eligibility required p95 latency ≤ ${slo} ms (MAX_P95_LATENCY_MS).`)
+  }
 
   let recommendation: string
   if (winner) {
@@ -199,6 +248,7 @@ export function aggregateDecisionReport(rows: DbResultRow[], promptsPerModel: nu
         recommendation += ` Baseline ${baselineId} (retiring) averaged overall ${round2(base.avgOverall)} for the same prompts — use this only as a reference, not as a migration target.`
       }
     }
+    if (extra.length > 0) recommendation += ` ${extra.join(' ')}`
   } else if (models.length === 0) {
     recommendation = 'No results were found for this batch, so no recommendation can be made.'
   } else {
@@ -208,6 +258,7 @@ export function aggregateDecisionReport(rows: DbResultRow[], promptsPerModel: nu
       })
       .join(' | ')
     recommendation = `No model passed all thresholds simultaneously. Closest summary: ${detail}`
+    if (extra.length > 0) recommendation += ` Active gates: ${extra.join(' ')}`
   }
 
   return { models, eligible, winner, recommendation, baselineModelId: baselineId }

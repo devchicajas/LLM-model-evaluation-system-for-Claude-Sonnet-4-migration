@@ -18,13 +18,7 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      min-height: 100vh;
-    }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
     header {
       padding: 1.25rem 1.5rem;
       border-bottom: 1px solid var(--border);
@@ -51,7 +45,7 @@
       overflow: hidden;
       border: 1px solid var(--border);
     }
-    th, td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th, td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: rgba(91, 141, 239, 0.06); }
@@ -66,24 +60,59 @@
       border: 1px solid var(--border);
       margin-top: 1rem;
     }
-    button {
-      margin-top: 0.5rem;
-      padding: 0.5rem 1rem;
+    button, .btn-link {
+      margin-top: 0;
+      padding: 0.35rem 0.65rem;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--accent);
       color: #fff;
       font-weight: 500;
       cursor: pointer;
+      font-size: 0.8rem;
     }
-    button:hover { filter: brightness(1.08); }
+    .btn-link { background: transparent; color: var(--accent); border-color: var(--accent); }
+    button:hover, .btn-link:hover { filter: brightness(1.08); }
     footer { padding: 2rem 1.5rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
+    .truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 100;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    .modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      max-width: 900px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 1.25rem;
+    }
+    .modal h3 { margin: 0 0 0.75rem; font-size: 1rem; }
+    .modal pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      overflow: auto;
+      max-height: 40vh;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .modal .close-row { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
   </style>
 </head>
 <body>
   <header>
     <h1>Replacement model evaluation</h1>
-    <p>Latest batch from Postgres · same data as <code>npm start</code> / <code>eval-output/latest-run.json</code></p>
+    <p>Latest batch from Postgres · same payload shape as <code>eval-output/latest-run.json</code></p>
   </header>
   <main>
     <div id="status" class="banner">Loading…</div>
@@ -105,11 +134,67 @@
         </thead>
         <tbody></tbody>
       </table>
+
+      <h2>Per-prompt results</h2>
+      <p style="color:var(--muted); font-size:0.85rem; margin:0 0 0.75rem;">Click <strong>Details</strong> for full prompt, answer, and stored scores JSON.</p>
+      <table id="detail-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Category</th>
+            <th>Prompt preview</th>
+            <th class="num">Latency ms</th>
+            <th class="num">Overall</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
   </main>
+
+  <div id="modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal">
+      <div class="close-row"><button type="button" id="modal-close">Close</button></div>
+      <h3 id="modal-title">Result detail</h3>
+      <p style="color:var(--muted); font-size:0.85rem; margin:0 0 0.5rem;"><strong>Category:</strong> <span id="modal-cat"></span></p>
+      <h4 style="margin:0.75rem 0 0.35rem; font-size:0.85rem; color:var(--muted);">USER PROMPT</h4>
+      <pre id="modal-prompt"></pre>
+      <h4 style="margin:0.75rem 0 0.35rem; font-size:0.85rem; color:var(--muted);">MODEL ANSWER</h4>
+      <pre id="modal-answer"></pre>
+      <h4 style="margin:0.75rem 0 0.35rem; font-size:0.85rem; color:var(--muted);">STORED SCORES (JSON)</h4>
+      <pre id="modal-scores"></pre>
+    </div>
+  </div>
+
   <footer>Run <code>npm run ui</code> after an eval. Refresh this page to reload.</footer>
   <script>
     function round2(n) { return Math.round(Number(n) * 100) / 100; }
+    function preview(s, n) {
+      if (!s) return '—';
+      const t = s.replace(/\s+/g, ' ').trim();
+      return t.length <= n ? t : t.slice(0, n) + '…';
+    }
+    function openModal(row) {
+      document.getElementById('modal-prompt').textContent = row.prompt || '(empty)';
+      document.getElementById('modal-answer').textContent = row.answer || '(no answer)';
+      document.getElementById('modal-scores').textContent = row.scores
+        ? JSON.stringify(row.scores, null, 2)
+        : '(no scores)';
+      document.getElementById('modal-cat').textContent = row.category || '—';
+      document.getElementById('modal-title').textContent = row.model + ' · DB prompt_id ' + row.prompt_id;
+      document.getElementById('modal').classList.add('open');
+      document.getElementById('modal').setAttribute('aria-hidden', 'false');
+    }
+    function closeModal() {
+      document.getElementById('modal').classList.remove('open');
+      document.getElementById('modal').setAttribute('aria-hidden', 'true');
+    }
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal').addEventListener('click', function (e) {
+      if (e.target === this) closeModal();
+    });
+
     async function load() {
       const el = document.getElementById('status');
       const content = document.getElementById('content');
@@ -127,11 +212,15 @@
         if (rep) {
           const rb = document.getElementById('repro-banner');
           rb.style.display = 'block';
+          let extra = '';
+          if (rep.maxP95LatencyMsGate != null) extra += ' · p95 gate ' + rep.maxP95LatencyMsGate + ' ms';
+          if (rep.categoryScoreWeights && Object.keys(rep.categoryScoreWeights).length)
+            extra += ' · weighted categories';
           rb.textContent =
             'Batch ' + data.evalBatchId + ' · mode ' + rep.evalRuntimeMode +
             ' · candidates ' + (rep.candidateModels || []).join(', ') +
             ' · judge ' + rep.judgeModelId +
-            ' · dataset ' + rep.datasetVersion + ' (sha256 ' + rep.datasetSha256.slice(0, 12) + '…)';
+            ' · dataset ' + rep.datasetVersion + ' (sha256 ' + rep.datasetSha256.slice(0, 12) + '…)' + extra;
         }
         document.getElementById('recommendation').textContent = data.report.recommendation || '';
 
@@ -142,16 +231,51 @@
           const tr = document.createElement('tr');
           const isWin = data.report.winner && m.model === data.report.winner.model;
           const base = baselineId && m.model === baselineId ? 'baseline' : '';
-          tr.innerHTML = `
-            <td class="${isWin ? 'winner' : ''} ${base}">${m.model}${isWin ? ' ← pick' : ''}${base ? ' (baseline)' : ''}</td>
-            <td class="num">${round2(m.avgOverall)}</td>
-            <td class="num">${round2(m.avgCorrectness)}</td>
-            <td class="num">${round2(m.avgSafety)}</td>
-            <td class="num">${round2(m.failureRatePct)}</td>
-            <td class="num">${round2(m.p95LatencyMs)}</td>
-            <td class="num">${round2(m.totalCostUsd)}</td>
-          `;
+          tr.innerHTML =
+            '<td class="' + (isWin ? 'winner ' : '') + base + '">' + m.model +
+            (isWin ? ' ← pick' : '') + (base ? ' (baseline)' : '') + '</td>' +
+            '<td class="num">' + round2(m.avgOverall) + '</td>' +
+            '<td class="num">' + round2(m.avgCorrectness) + '</td>' +
+            '<td class="num">' + round2(m.avgSafety) + '</td>' +
+            '<td class="num">' + round2(m.failureRatePct) + '</td>' +
+            '<td class="num">' + round2(m.p95LatencyMs) + '</td>' +
+            '<td class="num">' + round2(m.totalCostUsd) + '</td>';
           tbody.appendChild(tr);
+        }
+
+        const dtbody = document.querySelector('#detail-table tbody');
+        dtbody.innerHTML = '';
+        for (const row of data.results || []) {
+          const ov = row.scores && row.scores.finalScores ? row.scores.finalScores.overall : null;
+          const tr = document.createElement('tr');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn-link';
+          btn.textContent = 'Details';
+          btn.addEventListener('click', function () { openModal(row); });
+          const tdModel = document.createElement('td');
+          tdModel.textContent = row.model;
+          const tdCat = document.createElement('td');
+          tdCat.textContent = row.category || '—';
+          const tdPr = document.createElement('td');
+          tdPr.className = 'truncate';
+          tdPr.title = row.prompt || '';
+          tdPr.textContent = preview(row.prompt, 80);
+          const tdLat = document.createElement('td');
+          tdLat.className = 'num';
+          tdLat.textContent = row.latency_ms != null ? row.latency_ms : '—';
+          const tdOv = document.createElement('td');
+          tdOv.className = 'num';
+          tdOv.textContent = ov != null ? round2(ov) : '—';
+          const tdBtn = document.createElement('td');
+          tdBtn.appendChild(btn);
+          tr.appendChild(tdModel);
+          tr.appendChild(tdCat);
+          tr.appendChild(tdPr);
+          tr.appendChild(tdLat);
+          tr.appendChild(tdOv);
+          tr.appendChild(tdBtn);
+          dtbody.appendChild(tr);
         }
       } catch (e) {
         el.className = 'banner error';

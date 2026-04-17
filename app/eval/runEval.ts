@@ -11,6 +11,7 @@ import { EVAL_DATASET } from './dataset.js'
 import {
   getActiveEvalModelIds,
   getDatabaseUrl,
+  getCurrentJudgeModelId,
   getFreeTierJudgeGeminiModelId,
   getOpenRouterCandidateSlugs,
   getOpenRouterJudgeModelSlug,
@@ -259,7 +260,7 @@ export async function runAll(): Promise<{ evalBatchId: string; runErrors: string
     )
   } else {
     console.info(
-      `[eval] Mode: Direct vendor APIs (EVAL_OPENROUTER off) — ${STANDARD_EVAL_MODEL_IDS.join(', ')}`,
+      `[eval] Mode: Direct vendor APIs (EVAL_OPENROUTER off) — candidates: ${STANDARD_EVAL_MODEL_IDS.join(', ')}; judge: ${getCurrentJudgeModelId()}`,
     )
   }
   const databaseUrl = getDatabaseUrl()

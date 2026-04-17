@@ -5,6 +5,40 @@ import {
   STANDARD_EVAL_MODEL_IDS,
 } from './types.js'
 
+/** Direct-API Anthropic judge (Messages API). Override without editing code. */
+export function getDirectAnthropicJudgeModelId(): string {
+  const raw = process.env.DIRECT_JUDGE_MODEL_ID?.trim()
+  if (raw) return raw
+  return JUDGE_MODEL_ID
+}
+
+/**
+ * Optional JSON map of prompt category → positive weight for score aggregation (default weight 1).
+ * Example: `{"debugging":1.5,"compliance":1.3}` — see README.
+ */
+export function getCategoryScoreWeights(): Record<string, number> | null {
+  const raw = process.env.EVAL_CATEGORY_WEIGHTS?.trim()
+  if (!raw) return null
+  try {
+    const o = JSON.parse(raw) as Record<string, unknown>
+    const out: Record<string, number> = {}
+    for (const [k, v] of Object.entries(o)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = v
+    }
+    return Object.keys(out).length > 0 ? out : null
+  } catch {
+    return null
+  }
+}
+
+/** When set, models with p95 latency above this value (ms) fail eligibility. */
+export function getMaxP95LatencyMsGate(): number | null {
+  const raw = process.env.MAX_P95_LATENCY_MS?.trim()
+  if (!raw) return null
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 const STANDARD_REQUIRED_KEYS = [
   { name: 'ANTHROPIC_API_KEY', env: 'ANTHROPIC_API_KEY' },
   { name: 'OPENAI_API_KEY', env: 'OPENAI_API_KEY' },
@@ -50,6 +84,13 @@ export function validateApiKeys(): void {
       `Missing required API key environment variables: ${missing.join(
         ', ',
       )}. Alternatives: set EVAL_OPENROUTER=true with OPENROUTER_API_KEY, or EVAL_FREE_TIER=true with GOOGLE_API_KEY. See .env.example.`,
+    )
+  }
+
+  const judge = getDirectAnthropicJudgeModelId()
+  if ((STANDARD_EVAL_MODEL_IDS as readonly string[]).includes(judge)) {
+    throw new Error(
+      `DIRECT_JUDGE_MODEL_ID (${judge}) cannot match a candidate in STANDARD_EVAL_MODEL_IDS. Pick a different judge model.`,
     )
   }
 }
@@ -139,5 +180,5 @@ export function getEvalRuntimeMode(): EvalRuntimeMode {
 export function getCurrentJudgeModelId(): string {
   if (isOpenRouterEval()) return getOpenRouterJudgeModelSlug()
   if (isFreeTierEval()) return getFreeTierJudgeGeminiModelId()
-  return JUDGE_MODEL_ID
+  return getDirectAnthropicJudgeModelId()
 }

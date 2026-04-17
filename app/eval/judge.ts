@@ -1,13 +1,13 @@
 /**
  * LLM-as-judge: a separate model scores each candidate answer on fixed dimensions (0–10).
- * Direct API uses Anthropic Messages (`JUDGE_MODEL_ID`); OpenRouter / free-tier use their own paths.
+ * Direct API uses Anthropic Messages (`DIRECT_JUDGE_MODEL_ID` or default `JUDGE_MODEL_ID` in `types.ts`).
  * Output must be JSON only; see `parseJudgeScores` and `rules.ts` for post-processing.
  */
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
+import { getDirectAnthropicJudgeModelId } from './env.js'
 import type { DatasetPrompt, JudgeScores } from './types.js'
-import { JUDGE_MODEL_ID } from './types.js'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -124,7 +124,7 @@ export async function judgeResponse(params: {
 
   const started = Date.now()
   const msg = await client.messages.create({
-    model: JUDGE_MODEL_ID,
+    model: getDirectAnthropicJudgeModelId(),
     max_tokens: 1024,
     messages: [{ role: 'user', content: instruction }],
   })

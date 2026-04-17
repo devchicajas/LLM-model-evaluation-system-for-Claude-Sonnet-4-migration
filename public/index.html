@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Model eval — dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #5b8def;
+      --good: #3ecf8e;
+      --warn: #f0b429;
+      --bad: #f07178;
+      --border: #2a3545;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 { margin: 0 0 0.25rem; font-size: 1.25rem; font-weight: 600; }
+    header p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    main { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+    .banner {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+    }
+    .banner.error { border-color: var(--bad); color: #ffc9c9; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      background: var(--panel);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    th, td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(91, 141, 239, 0.06); }
+    .num { font-variant-numeric: tabular-nums; text-align: right; }
+    .winner { color: var(--good); font-weight: 600; }
+    .baseline { color: var(--warn); }
+    h2 { font-size: 1rem; margin: 1.5rem 0 0.75rem; color: var(--muted); font-weight: 600; }
+    .recommendation {
+      padding: 1rem;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #1a2838, var(--panel));
+      border: 1px solid var(--border);
+      margin-top: 1rem;
+    }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--accent);
+      color: #fff;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.08); }
+    footer { padding: 2rem 1.5rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Replacement model evaluation</h1>
+    <p>Latest batch from Postgres · same data as <code>npm start</code> / <code>eval-output/latest-run.json</code></p>
+  </header>
+  <main>
+    <div id="status" class="banner">Loading…</div>
+    <div id="content" style="display:none">
+      <div class="recommendation" id="recommendation"></div>
+      <h2>Aggregate by model</h2>
+      <table id="agg-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th class="num">Overall</th>
+            <th class="num">Correctness</th>
+            <th class="num">Safety</th>
+            <th class="num">Fail %</th>
+            <th class="num">p95 ms</th>
+            <th class="num">Cost $</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+  <footer>Run <code>npm run ui</code> after an eval. Refresh this page to reload.</footer>
+  <script>
+    function round2(n) { return Math.round(Number(n) * 100) / 100; }
+    async function load() {
+      const el = document.getElementById('status');
+      const content = document.getElementById('content');
+      try {
+        const res = await fetch('/api/batch/latest');
+        const data = await res.json();
+        if (!res.ok) {
+          el.className = 'banner error';
+          el.textContent = data.error || res.statusText;
+          return;
+        }
+        el.style.display = 'none';
+        content.style.display = 'block';
+        document.getElementById('recommendation').textContent = data.report.recommendation || '';
+
+        const tbody = document.querySelector('#agg-table tbody');
+        tbody.innerHTML = '';
+        const baselineId = data.report.baselineModelId || null;
+        for (const m of data.report.models || []) {
+          const tr = document.createElement('tr');
+          const isWin = data.report.winner && m.model === data.report.winner.model;
+          const base = baselineId && m.model === baselineId ? 'baseline' : '';
+          tr.innerHTML = `
+            <td class="${isWin ? 'winner' : ''} ${base}">${m.model}${isWin ? ' ← pick' : ''}${base ? ' (baseline)' : ''}</td>
+            <td class="num">${round2(m.avgOverall)}</td>
+            <td class="num">${round2(m.avgCorrectness)}</td>
+            <td class="num">${round2(m.avgSafety)}</td>
+            <td class="num">${round2(m.failureRatePct)}</td>
+            <td class="num">${round2(m.p95LatencyMs)}</td>
+            <td class="num">${round2(m.totalCostUsd)}</td>
+          `;
+          tbody.appendChild(tr);
+        }
+      } catch (e) {
+        el.className = 'banner error';
+        el.textContent = e.message || String(e);
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

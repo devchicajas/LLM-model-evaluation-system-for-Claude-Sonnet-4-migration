@@ -1,0 +1,54 @@
+import type { DatasetPrompt } from './types.js'
+
+/**
+ * Fixed benchmark prompts representing realistic product traffic.
+ * Categories map to how we expect production prompts to behave.
+ */
+export const EVAL_DATASET: readonly DatasetPrompt[] = [
+  {
+    id: 'product-roadmap-prioritization',
+    category: 'product',
+    prompt:
+      'We are a B2B SaaS for finance teams. Leadership wants a quarterly roadmap theme: either "workflow automation" or "deeper ERP integrations". What criteria should we use to decide, and what decision process would you recommend for a 10-person product org?',
+  },
+  {
+    id: 'product-feature-request-triage',
+    category: 'product',
+    prompt:
+      'Customers keep asking for a "dark mode" and for CSV exports larger than 500k rows. Our eng capacity is tight. How should we triage these requests and what should we communicate back to customers?',
+  },
+  {
+    id: 'debugging-python-traceback',
+    category: 'debugging',
+    prompt:
+      'I am getting this error in Python 3.11:\n\nTraceback (most recent call last):\n  File "app.py", line 42, in <module>\n    user = load_user(payload["user_id"])\nKeyError: \'user_id\'\n\nThe payload is built from a JWT. What are the most likely causes and how should I debug step by step?',
+  },
+  {
+    id: 'debugging-node-async-hang',
+    category: 'debugging',
+    prompt:
+      'Our Node.js API sometimes hangs under load: requests never return, no obvious exception. We use Postgres + Prisma. Outline a practical debugging checklist and what signals to look for in logs/metrics.',
+  },
+  {
+    id: 'rag-policy-handbook',
+    category: 'RAG',
+    prompt:
+      'Using ONLY the following retrieved snippets from our employee handbook, answer the question. If the snippets are insufficient, say what is missing.\n\n[Snippet A] Remote employees must follow the security checklist in Appendix C before accessing customer data.\n[Snippet B] Appendix C requires full-disk encryption, screen lock <= 5 minutes, and MDM enrollment on laptops.\n[Snippet C] Customer data access requires manager approval recorded in the access ticket system.\n\nQuestion: As a remote employee, what must I complete before accessing customer data, and where is approval recorded?',
+  },
+  {
+    id: 'ambiguity-vague-bug-report',
+    category: 'ambiguity',
+    prompt: 'The checkout is broken. Fix it.',
+  },
+  {
+    id: 'edge-cases-empty-input',
+    category: 'edge cases',
+    prompt: '',
+  },
+  {
+    id: 'edge-cases-extreme-constraints',
+    category: 'edge cases',
+    prompt:
+      'Design a URL shortener API with these constraints: max 6-character codes, case-insensitive, must support 10M active links, and collisions must be astronomically unlikely. Summarize the encoding approach and the collision handling strategy in under 200 words.',
+  },
+] as const

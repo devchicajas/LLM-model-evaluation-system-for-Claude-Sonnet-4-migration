@@ -332,10 +332,9 @@ Local captures from **`npm start`** and **`npm run ui`** (`http://localhost:3847
 
 ![Dashboard Details modal with prompt answer and scores JSON](./docs/screenshots/dashboard-details-modal.png)
 
-**Dashboard — summary-only framing (batches recorded with dataset `1.0.0`):** recommendation plus **Aggregate by model** (two captures from different viewports).
+**Dashboard — summary-only framing (batches recorded with dataset `1.0.0`):** recommendation plus **Aggregate by model**.
 
 ![Dashboard aggregate table on dataset v1 batch](./docs/screenshots/dashboard-dataset-v1-aggregate-only.png)
-
 
 **Terminal — report (8 scored responses per model, dataset `1.0.0`):** aggregate metrics for each candidate.
 

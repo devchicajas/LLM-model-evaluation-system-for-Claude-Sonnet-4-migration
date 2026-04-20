@@ -28,7 +28,7 @@
 
 **What it is:** We evaluate **at least two** (we use **three**) “replacement” models per configuration:
 
-- **Direct API mode (default):** `gpt-4o-mini`, `claude-sonnet-4-6`, `gemini-2.5-pro` (judge: `claude-opus-4-7`, not a candidate).
+- **Direct API mode (default):** `gpt-4o-mini`, `claude-sonnet-4-6`, `gemini-2.5-pro` (judge: `claude-opus-4-7` by default, not a candidate). Override the Anthropic judge with **`DIRECT_JUDGE_MODEL_ID`** if needed; it must **not** match any candidate (validated at startup).
 - **OpenRouter mode:** three slugs from `OPENROUTER_CANDIDATE_MODELS` (must match [openrouter.ai/models](https://openrouter.ai/models) — OpenRouter IDs differ from raw Anthropic/Google names).
 - **Free-tier Google mode:** `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-1.5-flash` (judge default `gemini-2.5-flash`, not in that set). See `docs/GEMINI_MODEL_LINEUP.md`.
 
@@ -81,6 +81,14 @@ Some APIs reject a **completely empty** user string. For that dataset row only, 
 
 Re-print the latest report without re-running APIs: `npm run report`.
 
+**Optional knobs (same code paths; see [README — Optional controls](./README.md#optional-controls-implemented) and `.env.example`):**
+
+| Variable | When it applies | Effect |
+|----------|-----------------|--------|
+| `DIRECT_JUDGE_MODEL_ID` | Direct API mode | Anthropic model id for the judge instead of the default in `app/eval/types.ts`; must not equal any candidate. |
+| `MAX_P95_LATENCY_MS` | Any mode | Adds an eligibility gate: models with **p95 latency above** this value are not eligible as winner. |
+| `EVAL_CATEGORY_WEIGHTS` | Any mode | JSON map of **category → weight**; per-dimension **means** for the gates use these weights (unknown categories weight **1**). |
+
 ---
 
 ## 6. How to add a new model
@@ -105,6 +113,13 @@ Always keep **one** judge model that is not in the candidate set.
 - Average **overall** ≥ **7.0**
 - **Failure rate** \< **10%** (failed generations for that model)
 
+**Optional gates (env-driven; same source of truth in `app/eval/report.ts`):**
+
+- If **`MAX_P95_LATENCY_MS`** is set, the model is eligible only if its **p95 latency** is **≤** that value (milliseconds).
+- If **`EVAL_CATEGORY_WEIGHTS`** is set (JSON object), the **averages** used for correctness, safety, overall, etc. are **category-weighted** across prompts; categories not listed use weight **1**.
+
+**Judge override (direct API only):** **`DIRECT_JUDGE_MODEL_ID`** selects which Anthropic model runs the judge; it must remain **disjoint** from the three candidates (`validateApiKeys` in `app/eval/env.ts`).
+
 **Ranking among eligible models:**
 
 1. Higher average **overall**
@@ -120,7 +135,7 @@ Always keep **one** judge model that is not in the candidate set.
 - **Terminal:** table printed at end of `npm start`
 - **JSON:** `eval-output/latest-run.json` (full report + per-prompt rows)
 - **Postgres:** `prompts` and `results` joined by `prompt_id`; `eval_batch_id` groups one run
-- **UI:** `npm run ui` → browser dashboard for the **latest** batch
+- **UI:** `npm run ui` → `http://localhost:3847` (override with `EVAL_UI_PORT`) — dashboard for the **latest** batch from Postgres (`public/index.html`). Use **Per-prompt results → Details** for full prompt text, model answer, and stored scores JSON. **Screenshots** of the dashboard and terminal output live in [README — Screenshots](./README.md#screenshots).
 
 ---
 
@@ -138,6 +153,8 @@ The code prints an automated **recommendation string** using the numbers from th
 | **Baseline** | The retiring `claude-sonnet-4` (or OpenRouter slug) used only for comparison. |
 | **LLM-as-judge** | A separate model that scores another model’s answer. |
 | **Failure rate** | Share of prompts where that model returned no stored answer after retries. |
+| **p95 latency gate** | Optional env `MAX_P95_LATENCY_MS`: a model is ineligible if its **p95** latency exceeds this value. |
+| **Category weights** | Optional env `EVAL_CATEGORY_WEIGHTS` (JSON): weights each prompt’s category when computing **averages** for threshold checks. |
 
 ---
 
